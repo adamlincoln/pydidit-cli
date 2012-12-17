@@ -1,15 +1,16 @@
-This file requires editing
+pydidit-cli
 ==========================
 
-Note to the author: Please add something informative to this README *before*
-releasing your software, as `a little documentation goes a long way`_.  Both
-README.rst (this file) and NEWS.txt (release notes) will be included in your
-package metadata which gets displayed in the PyPI page for your project.
+pydidit is a todo system flexible enough to fit your style.
 
-You can take a look at the README.txt of other projects, such as repoze.bfg
-(http://bfg.repoze.org/trac/browser/trunk/README.txt) for some ideas.
+This package is a CLI frontend for pydidit.
 
-.. _`a little documentation goes a long way`: http://www.martinaspeli.net/articles/a-little-documentation-goes-a-long-way
+
+Authors
+-------
+
+Adam J. Lincoln <adamjlincoln@gmail.com>
+
 
 Credits
 -------
