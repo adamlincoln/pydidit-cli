@@ -8,8 +8,10 @@ from pydiditbackend import initialize
 from pydiditbackend import get
 from pydiditbackend import put
 from pydiditbackend import delete_from_db
+from pydiditbackend import set_attribute
+from pydiditbackend import set_completed
+from pydiditbackend import link
 from pydiditbackend import commit
-from pydiditbackend import flush
 
 parser = OptionParser()
 
@@ -77,7 +79,7 @@ def main():
         elif options.operations[0] == 'sink':
             sink(options, args)
         elif options.operations[0] == 'link':
-            link(options, args)
+            lnk(options, args)
 
 
 def read(options):
@@ -88,10 +90,7 @@ def read(options):
         else:
             for obj in objs:
                 print '{0}:'.format(options.objects[0]), format(obj, options)
-                related_objs = getattr(
-                    obj,
-                    '{0}s'.format(options.objects[1].lower())
-                )
+                related_objs = obj['{0}s'.format(options.objects[1].lower())]
                 print '\t{0}s:'.format(options.objects[1])
                 for related_obj in related_objs:
                     print '\t', format(related_obj, options)
@@ -99,8 +98,7 @@ def read(options):
 
 def create(options, args):
     if len(options.objects) == 1:
-        created = put(options.objects[0], args[0])
-        flush()
+        created = put(options.objects[0], unicode(args[0]))
         print 'Created:', format(created, options)
         commit()
     else:
@@ -117,7 +115,7 @@ def update(options, args):
             for prop, value in (json.loads(args[1])).iteritems():
                 if isinstance(value, str):
                     value = unicode(value)
-                setattr(to_update, prop, value)
+                set_attribute(to_update, prop, value)
             print 'Updated:', format(to_update, options)
             commit()
         else:
@@ -149,16 +147,10 @@ def complete(options, args):
                 options.objects[0],
                 filter_by={'id': int(args[0])}
             )[0]
-            if hasattr(to_complete, 'set_completed'):
-                to_complete.set_completed()
+            result = set_completed(to_complete)
+            if result is not None:
                 print 'Completed:', format(to_complete, options)
                 commit()
-            else:
-                raise Exception(
-                    'Object {0} cannot be set as complete'.format(
-                        options.objects[0]
-                    )
-                )
         else:
             raise Exception('One and only one argument in complete')
     else:
@@ -170,12 +162,12 @@ def flt(options, args):
         if len(args) == 1:
             objs = get(options.objects[0])
             for obj in objs:
-                if obj.id == int(args[0]):
+                if obj['id'] == int(args[0]):
                     idx = objs.index(obj)
                     if idx != 0:
-                        temp = objs[idx - 1].display_position
-                        objs[idx - 1].display_position = obj.display_position
-                        obj.display_position = temp
+                        temp = objs[idx - 1]['display_position']
+                        set_attribute(objs[idx - 1], 'display_position', obj['display_position'])
+                        set_attribute(obj, 'display_position', temp)
             commit()
         else:
             raise Exception('One and only one arguments in float')
@@ -188,12 +180,12 @@ def sink(options, args):
         if len(args) == 1:
             objs = get(options.objects[0])
             for obj in objs:
-                if obj.id == int(args[0]):
+                if obj['id'] == int(args[0]):
                     idx = objs.index(obj)
                     if idx != len(objs) - 1:
-                        temp = objs[idx + 1].display_position
-                        objs[idx + 1].display_position = obj.display_position
-                        obj.display_position = temp
+                        temp = objs[idx + 1]['display_position']
+                        set_attribute(objs[idx + 1], 'display_position', obj['display_position'])
+                        set_attribute(obj, 'display_position', temp)
             commit()
         else:
             raise Exception('One and only one arguments in sink')
@@ -201,7 +193,7 @@ def sink(options, args):
         raise Exception('One and only one object in sink')
 
 
-def link(options, args):
+def lnk(options, args):
     if len(options.objects) == 2:
         if len(args) == 2:
             obj = get(options.objects[0], filter_by={'id': int(args[0])})[0]
@@ -209,9 +201,9 @@ def link(options, args):
                 options.objects[1],
                 filter_by={'id': int(args[1])}
             )[0]
-            getattr(obj, '{0}s'.format(
+            link(obj, '{0}s'.format(
                 options.objects[1].lower()
-            )).append(related_obj)
+            ), related_obj)
             commit()
         else:
             raise Exception('Two and only two arguments in link')
@@ -223,29 +215,31 @@ def format(thing, options):
     if thing is None:
         return ''
     if hasattr(thing, '__iter__'):
-        return '\n'.join(
-            ['\t* {0}'.format(
-                format(element, options)
-            ) for element in thing]
-        )
-    else:
-        info = []
-        if hasattr(thing, 'description'):
-            info.append(thing.description)
-        elif hasattr(thing, 'text'):
-            info.append(thing.text)
-        elif hasattr(thing, 'name'):
-            info.append(thing.name)
-        if options.verbose is True:
-            if hasattr(thing, 'display_position'):
-                info.append(thing.display_position)
-            if hasattr(thing, 'created_at'):
-                info.append(thing.created_at.strftime('%Y-%m-%d %H:%M'))
-            if hasattr(thing, 'modified_at'):
-                info.append(thing.modified_at.strftime('%Y-%m-%d %H:%M'))
-        return '{0} id {1}{2}: {3}'.format(
-            thing.__class__.__name__,
-            thing.id,
-            ' ({0})'.format(thing.state) if hasattr(thing, 'state') else '',
-            '  '.join(info),
-        )
+        if hasattr(thing, 'keys'):  # I'm a dict
+            info = []
+            if 'description' in thing:
+                info.append(thing['description'])
+            elif 'text' in thing:
+                info.append(thing['text'])
+            elif 'name' in thing:
+                info.append(thing['name'])
+            if options.verbose is True:
+                if 'display_position' in thing:
+                    info.append(thing['display_position'])
+                if 'created_at' in thing:
+                    info.append(thing['created_at'].strftime('%Y-%m-%d %H:%M'))
+                if 'modified_at' in thing:
+                    info.append(thing['modified_at'].strftime('%Y-%m-%d %H:%M'))
+            return '{0} id {1}{2}: {3}'.format(
+                thing['type'],
+                thing['id'],
+                ' ({0})'.format(thing['state']) if 'state' in thing else '',
+                '  '.join(info),
+            )
+        else:  # I'm a list
+            return '\n'.join(
+                ['\t* {0}'.format(
+                    format(element, options)
+                ) for element in thing]
+            )
+
