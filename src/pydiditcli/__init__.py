@@ -32,6 +32,18 @@ parser.add_option('-s', '--sink', action='append_const', const='sink',
 parser.add_option('-l', '--link', action='append_const', const='link',
                   dest='operations')
 
+parser.add_option('--unlink', action='store_true', dest='unlink',
+                  default=False)
+
+parser.add_option('--prereq', action='store_const', dest='relationship',
+                  const='prereq', default='contains')
+parser.add_option('--dependent', action='store_const', dest='relationship',
+                  const='dependent', default='contains')
+parser.add_option('--contains', action='store_const', dest='relationship',
+                  const='contains', default='contains')
+parser.add_option('--contained_by', action='store_const', dest='relationship',
+                  const='contained_by', default='contains')
+
 parser.add_option('-a', '--all', action='store_true', dest='all',
                   default=False)
 parser.add_option('-v', '--verbose', action='store_true', dest='verbose',
@@ -46,6 +58,32 @@ if 'url' in dict(ini.items('backend')):
     import pydiditbackendweb as b
 else:
     import pydiditbackend as b
+
+
+nonstandard_links = {
+    'Todo': {
+        'Project': set((
+            'prereq_projects',
+            'contained_by_projects',
+        )),
+        'Todo': set((
+            'prereq_todos',
+            'dependent_todos',
+        )),
+    },
+    'Project': {
+        'Project': set((
+            'contains_projects',
+            'contained_by_projects',
+            'prereq_projects',
+            'dependent_projects',
+        )),
+        'Todo': set((
+            'contains_todos',
+            'dependent_todos',
+        )),
+    },
+}
 
 
 def main():
@@ -77,6 +115,8 @@ def main():
             sink(options, args)
         elif options.operations[0] == 'link':
             lnk(options, args)
+        elif options.operations[0] == 'unlink':
+            lnk(options, args)
 
 
 def read(options):
@@ -87,7 +127,20 @@ def read(options):
         else:
             for obj in objs:
                 print '{0}:'.format(options.objects[0]), format(obj, options)
-                related_objs = obj['{0}s'.format(options.objects[1].lower())]
+                related_attribute_name = '{0}s'.format(
+                    options.objects[1].lower()
+                )
+                if obj['type'] in nonstandard_links:
+                    if options.objects[1] in \
+                            nonstandard_links[obj['type']]:
+                        attrs = nonstandard_links[obj['type']][options.objects[1]]
+                        potential_attribute_name = '{0}_{1}s'.format(
+                            options.relationship,
+                            options.objects[1].lower()
+                        )
+                        if potential_attribute_name in attrs:
+                            related_attribute_name = potential_attribute_name
+                related_objs = obj[related_attribute_name]
                 print '\t{0}s:'.format(options.objects[1])
                 for related_obj in related_objs:
                     print '\t', format(related_obj, options)
@@ -198,9 +251,23 @@ def lnk(options, args):
                 options.objects[1],
                 filter_by={'id': int(args[1])}
             )[0]
-            b.link(obj, '{0}s'.format(
+            attribute_name = '{0}s'.format(
                 options.objects[1].lower()
-            ), related_obj)
+            )
+            if obj['type'] in nonstandard_links:
+                if related_obj['type'] in \
+                        nonstandard_links[obj['type']]:
+                    attrs = nonstandard_links[obj['type']][related_obj['type']]
+                    potential_attribute_name = '{0}_{1}s'.format(
+                        options.relationship,
+                        related_obj['type'].lower()
+                    )
+                    if potential_attribute_name in attrs:
+                        attribute_name = potential_attribute_name
+            if not options.unlink:
+                b.link(obj, attribute_name, related_obj)
+            else:
+                b.link(obj, attribute_name, related_obj, unlink=True)
             b.commit()
         else:
             raise Exception('Two and only two arguments in link')
