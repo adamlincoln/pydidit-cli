@@ -4,15 +4,6 @@ import os
 from optparse import OptionParser
 import simplejson as json
 
-#from pydiditbackend import initialize
-#from pydiditbackend import get
-#from pydiditbackend import put
-#from pydiditbackend import delete_from_db
-#from pydiditbackend import set_attribute
-#from pydiditbackend import set_completed
-#from pydiditbackend import link
-#from pydiditbackend import commit
-
 parser = OptionParser()
 
 parser.add_option('-t', '--todo', const='Todo', action='append_const',
@@ -121,7 +112,7 @@ def update(options, args):
             for prop, value in (json.loads(args[1])).iteritems():
                 if isinstance(value, str):
                     value = unicode(value)
-                set_attribute(to_update, prop, value)
+                b.set_attributes(to_update, {prop: value})
             print 'Updated:', format(to_update, options)
             b.commit()
         else:
@@ -172,8 +163,8 @@ def flt(options, args):
                     idx = objs.index(obj)
                     if idx != 0:
                         temp = objs[idx - 1]['display_position']
-                        set_attribute(objs[idx - 1], 'display_position', obj['display_position'])
-                        set_attribute(obj, 'display_position', temp)
+                        b.set_attributes(objs[idx - 1], {'display_position': obj['display_position']})
+                        b.set_attributes(obj, {'display_position': temp})
             b.commit()
         else:
             raise Exception('One and only one arguments in float')
@@ -190,8 +181,8 @@ def sink(options, args):
                     idx = objs.index(obj)
                     if idx != len(objs) - 1:
                         temp = objs[idx + 1]['display_position']
-                        set_attribute(objs[idx + 1], 'display_position', obj['display_position'])
-                        set_attribute(obj, 'display_position', temp)
+                        b.set_attributes(objs[idx + 1], {'display_position': obj['display_position']})
+                        b.set_attributes(obj, {'display_position': temp})
             b.commit()
         else:
             raise Exception('One and only one arguments in sink')
