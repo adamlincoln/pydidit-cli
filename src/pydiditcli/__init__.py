@@ -4,14 +4,14 @@ import os
 from optparse import OptionParser
 import simplejson as json
 
-from pydiditbackend import initialize
-from pydiditbackend import get
-from pydiditbackend import put
-from pydiditbackend import delete_from_db
-from pydiditbackend import set_attribute
-from pydiditbackend import set_completed
-from pydiditbackend import link
-from pydiditbackend import commit
+#from pydiditbackend import initialize
+#from pydiditbackend import get
+#from pydiditbackend import put
+#from pydiditbackend import delete_from_db
+#from pydiditbackend import set_attribute
+#from pydiditbackend import set_completed
+#from pydiditbackend import link
+#from pydiditbackend import commit
 
 parser = OptionParser()
 
@@ -47,17 +47,23 @@ parser.add_option('-v', '--verbose', action='store_true', dest='verbose',
                   default=False)
 
 
-def main():
-    ini = ConfigParser.SafeConfigParser()
-    ini.read((os.path.expanduser('~/.pydiditrc'),
-              os.path.expanduser('~/.pydidit-clirc'),))
+ini = ConfigParser.SafeConfigParser()
+ini.read((os.path.expanduser('~/.pydiditrc'),
+          os.path.expanduser('~/.pydidit-clirc'),))
 
+if 'url' in dict(ini.items('backend')):
+    import pydiditbackendweb as b
+else:
+    import pydiditbackend as b
+
+
+def main():
     options, args = parser.parse_args()
 
     config = StringIO()
     ini.write(config)
     config.seek(0)
-    initialize(external_config_fp=config)
+    b.initialize(external_config_fp=config)
 
     if options.operations is None:
         read(options)
@@ -84,7 +90,7 @@ def main():
 
 def read(options):
     if len(options.objects) > 0:
-        objs = get(options.objects[0], options.all)
+        objs = b.get(options.objects[0], options.all)
         if len(options.objects) == 1:
             print '{0}s:'.format(options.objects[0]), format(objs, options)
         else:
@@ -98,9 +104,9 @@ def read(options):
 
 def create(options, args):
     if len(options.objects) == 1:
-        created = put(options.objects[0], unicode(args[0]))
+        created = b.put(options.objects[0], unicode(args[0]))
         print 'Created:', format(created, options)
-        commit()
+        b.commit()
     else:
         raise Exception('One and only one object in create')
 
@@ -108,7 +114,7 @@ def create(options, args):
 def update(options, args):
     if len(options.objects) == 1:
         if len(args) == 2:
-            to_update = get(
+            to_update = b.get(
                 options.objects[0],
                 filter_by={'id': int(args[0])}
             )[0]
@@ -117,7 +123,7 @@ def update(options, args):
                     value = unicode(value)
                 set_attribute(to_update, prop, value)
             print 'Updated:', format(to_update, options)
-            commit()
+            b.commit()
         else:
             raise Exception('Two and only two arguments in update')
     else:
@@ -127,13 +133,13 @@ def update(options, args):
 def delete(options, args):
     if len(options.objects) == 1:
         if len(args) == 1:
-            to_delete = get(
+            to_delete = b.get(
                 options.objects[0],
                 filter_by={'id': int(args[0])}
             )[0]
-            delete_from_db(to_delete)
+            b.delete_from_db(to_delete)
             print 'Deleted:', format(to_delete, options)
-            commit()
+            b.commit()
         else:
             raise Exception('One and only one argument in delete')
     else:
@@ -143,14 +149,14 @@ def delete(options, args):
 def complete(options, args):
     if len(options.objects) == 1:
         if len(args) == 1:
-            to_complete = get(
+            to_complete = b.get(
                 options.objects[0],
                 filter_by={'id': int(args[0])}
             )[0]
-            result = set_completed(to_complete)
+            result = b.set_completed(to_complete)
             if result is not None:
                 print 'Completed:', format(to_complete, options)
-                commit()
+                b.commit()
         else:
             raise Exception('One and only one argument in complete')
     else:
@@ -160,7 +166,7 @@ def complete(options, args):
 def flt(options, args):
     if len(options.objects) == 1:
         if len(args) == 1:
-            objs = get(options.objects[0])
+            objs = b.get(options.objects[0])
             for obj in objs:
                 if obj['id'] == int(args[0]):
                     idx = objs.index(obj)
@@ -168,7 +174,7 @@ def flt(options, args):
                         temp = objs[idx - 1]['display_position']
                         set_attribute(objs[idx - 1], 'display_position', obj['display_position'])
                         set_attribute(obj, 'display_position', temp)
-            commit()
+            b.commit()
         else:
             raise Exception('One and only one arguments in float')
     else:
@@ -178,7 +184,7 @@ def flt(options, args):
 def sink(options, args):
     if len(options.objects) == 1:
         if len(args) == 1:
-            objs = get(options.objects[0])
+            objs = b.get(options.objects[0])
             for obj in objs:
                 if obj['id'] == int(args[0]):
                     idx = objs.index(obj)
@@ -186,7 +192,7 @@ def sink(options, args):
                         temp = objs[idx + 1]['display_position']
                         set_attribute(objs[idx + 1], 'display_position', obj['display_position'])
                         set_attribute(obj, 'display_position', temp)
-            commit()
+            b.commit()
         else:
             raise Exception('One and only one arguments in sink')
     else:
@@ -196,15 +202,15 @@ def sink(options, args):
 def lnk(options, args):
     if len(options.objects) == 2:
         if len(args) == 2:
-            obj = get(options.objects[0], filter_by={'id': int(args[0])})[0]
-            related_obj = get(
+            obj = b.get(options.objects[0], filter_by={'id': int(args[0])})[0]
+            related_obj = b.get(
                 options.objects[1],
                 filter_by={'id': int(args[1])}
             )[0]
-            link(obj, '{0}s'.format(
+            b.link(obj, '{0}s'.format(
                 options.objects[1].lower()
             ), related_obj)
-            commit()
+            b.commit()
         else:
             raise Exception('Two and only two arguments in link')
     else:
