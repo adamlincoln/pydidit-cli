@@ -54,7 +54,8 @@ ini = ConfigParser.SafeConfigParser()
 ini.read((os.path.expanduser('~/.pydiditrc'),
           os.path.expanduser('~/.pydidit-clirc'),))
 
-if 'url' in dict(ini.items('backend')):
+backend_settings = dict(ini.items('backend'))
+if 'remote' in backend_settings and backend_settings['remote']:
     import pydiditbackendweb as b
 else:
     import pydiditbackend as b
