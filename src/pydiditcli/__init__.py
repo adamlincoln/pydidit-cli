@@ -96,12 +96,12 @@ def main():
     b.initialize(external_config_fp=config)
 
     if options.operations is None:
-        read(options)
+        read(options, read)
     elif len(options.operations) > 1:
         raise Exception('Only one operation at a time supported.')
     else:
         if options.operations[0] == 'read':
-            read(options)
+            read(options, args)
         elif options.operations[0] == 'create':
             create(options, args)
         elif options.operations[0] == 'update':
@@ -120,7 +120,7 @@ def main():
             lnk(options, args)
 
 
-def read(options):
+def read(options, args):
     if len(options.objects) > 0:
         objs = b.get(options.objects[0], options.all)
         if len(options.objects) == 1:
@@ -144,7 +144,8 @@ def read(options):
                 related_objs = obj[related_attribute_name]
                 print '\t{0}s:'.format(options.objects[1])
                 for related_obj in related_objs:
-                    print '\t', format(related_obj, options)
+                    if not 'state' in related_obj or options.all or related_obj['state'] != 'completed':
+                        print '\t', format(related_obj, options)
 
 
 def create(options, args):
