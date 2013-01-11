@@ -96,7 +96,7 @@ def main():
     b.initialize(external_config_fp=config)
 
     if options.operations is None:
-        read(options, read)
+        read(options, args)
     elif len(options.operations) > 1:
         raise Exception('Only one operation at a time supported.')
     else:
@@ -122,7 +122,7 @@ def main():
 
 def read(options, args):
     if len(options.objects) > 0:
-        objs = b.get(options.objects[0], options.all)
+        objs = b.get(options.objects[0], options.all, filter_by=({'id': args[0]} if len(args) == 1 else None))
         if len(options.objects) == 1:
             print '{0}s:'.format(options.objects[0]), format(objs, options)
         else:
