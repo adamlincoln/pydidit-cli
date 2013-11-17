@@ -15,9 +15,9 @@ parser.add_option('-p', '--project', const='Project', action='append_const',
 parser.add_option('-n', '--note', const='Note', action='append_const',
                   dest='objects')
 
-parser.add_option('-c', '--create', action='append_const', const='create',
+parser.add_option('-a', '--add', action='append_const', const='add',
                   dest='operations')
-parser.add_option('-d', '--delete', action='append_const', const='delete',
+parser.add_option('--delete', action='append_const', const='delete',
                   dest='operations')
 parser.add_option('-u', '--update', action='append_const', const='update',
                   dest='operations')
@@ -35,16 +35,16 @@ parser.add_option('-l', '--link', action='append_const', const='link',
 parser.add_option('--unlink', action='store_true', dest='unlink',
                   default=False)
 
-parser.add_option('--prereq', action='store_const', dest='relationship',
+parser.add_option('-q', '--prereq', action='store_const', dest='relationship',
                   const='prereq', default='contains')
-parser.add_option('--dependent', action='store_const', dest='relationship',
+parser.add_option('-d', '--dependent', action='store_const', dest='relationship',
                   const='dependent', default='contains')
-parser.add_option('--contains', action='store_const', dest='relationship',
+parser.add_option('-c', '--contains', action='store_const', dest='relationship',
                   const='contains', default='contains')
-parser.add_option('--contained_by', action='store_const', dest='relationship',
+parser.add_option('-b', '--contained_by', action='store_const', dest='relationship',
                   const='contained_by', default='contains')
 
-parser.add_option('-a', '--all', action='store_true', dest='all',
+parser.add_option('--all', action='store_true', dest='all',
                   default=False)
 parser.add_option('-v', '--verbose', action='store_true', dest='verbose',
                   default=False)
@@ -61,30 +61,30 @@ else:
     import pydiditbackend as b
 
 
-nonstandard_links = {
-    'Todo': {
-        'Project': set((
-            'prereq_projects',
-            'contained_by_projects',
-        )),
-        'Todo': set((
-            'prereq_todos',
-            'dependent_todos',
-        )),
-    },
-    'Project': {
-        'Project': set((
-            'contains_projects',
-            'contained_by_projects',
-            'prereq_projects',
-            'dependent_projects',
-        )),
-        'Todo': set((
-            'contains_todos',
-            'dependent_todos',
-        )),
-    },
-}
+#nonstandard_links = {
+    #'Todo': {
+        #'Project': set((
+            #'prereq_projects',
+            #'contained_by_projects',
+        #)),
+        #'Todo': set((
+            #'prereq_todos',
+            #'dependent_todos',
+        #)),
+    #},
+    #'Project': {
+        #'Project': set((
+            #'contains_projects',
+            #'contained_by_projects',
+            #'prereq_projects',
+            #'dependent_projects',
+        #)),
+        #'Todo': set((
+            #'contains_todos',
+            #'dependent_todos',
+        #)),
+    #},
+#}
 
 
 def main():
@@ -102,8 +102,8 @@ def main():
     else:
         if options.operations[0] == 'read':
             read(options, args)
-        elif options.operations[0] == 'create':
-            create(options, args)
+        elif options.operations[0] == 'add':
+            add(options, args)
         elif options.operations[0] == 'update':
             update(options, args)
         elif options.operations[0] == 'delete':
@@ -120,6 +120,27 @@ def main():
             lnk(options, args)
 
 
+def relationship_name(obj, options):
+    simplest_name = '{0}s'.format(options.objects[1])
+    if simplest_name in obj:
+        return simplest_name
+    else:
+        if 
+    #related_attribute_name = '{0}s'.format(
+        #options.objects[1].lower()
+    #)
+    #if obj['type'] in nonstandard_links:
+        #if options.objects[1] in \
+                #nonstandard_links[obj['type']]:
+            #attrs = nonstandard_links[obj['type']][options.objects[1]]
+            #potential_attribute_name = '{0}_{1}s'.format(
+                #options.relationship,
+                #options.objects[1].lower()
+            #)
+            #if potential_attribute_name in attrs:
+                #related_attribute_name = potential_attribute_name
+
+
 def read(options, args):
     if len(options.objects) > 0:
         objs = b.get(options.objects[0], options.all, filter_by=({'id': args[0]} if len(args) == 1 else None))
@@ -128,19 +149,20 @@ def read(options, args):
         else:
             for obj in objs:
                 print '{0}:'.format(options.objects[0]), format(obj, options)
-                related_attribute_name = '{0}s'.format(
-                    options.objects[1].lower()
-                )
-                if obj['type'] in nonstandard_links:
-                    if options.objects[1] in \
-                            nonstandard_links[obj['type']]:
-                        attrs = nonstandard_links[obj['type']][options.objects[1]]
-                        potential_attribute_name = '{0}_{1}s'.format(
-                            options.relationship,
-                            options.objects[1].lower()
-                        )
-                        if potential_attribute_name in attrs:
-                            related_attribute_name = potential_attribute_name
+                #related_attribute_name = '{0}s'.format(
+                    #options.objects[1].lower()
+                #)
+                #if obj['type'] in nonstandard_links:
+                    #if options.objects[1] in \
+                            #nonstandard_links[obj['type']]:
+                        #attrs = nonstandard_links[obj['type']][options.objects[1]]
+                        #potential_attribute_name = '{0}_{1}s'.format(
+                            #options.relationship,
+                            #options.objects[1].lower()
+                        #)
+                        #if potential_attribute_name in attrs:
+                            #related_attribute_name = potential_attribute_name
+                related_attribute_name = b.relationship_name(obj
                 related_objs = obj[related_attribute_name]
                 print '\t{0}s:'.format(options.objects[1])
                 for related_obj in related_objs:
@@ -148,13 +170,13 @@ def read(options, args):
                         print '\t', format(related_obj, options)
 
 
-def create(options, args):
+def add(options, args):
     if len(options.objects) == 1:
         created = b.put(options.objects[0], unicode(args[0]))
         print 'Created:', format(created, options)
         b.commit()
     else:
-        raise Exception('One and only one object in create')
+        raise Exception('One and only one object in add')
 
 
 def update(options, args):
@@ -253,23 +275,23 @@ def lnk(options, args):
                 options.objects[1],
                 filter_by={'id': int(args[1])}
             )[0]
-            attribute_name = '{0}s'.format(
-                options.objects[1].lower()
-            )
-            if obj['type'] in nonstandard_links:
-                if related_obj['type'] in \
-                        nonstandard_links[obj['type']]:
-                    attrs = nonstandard_links[obj['type']][related_obj['type']]
-                    potential_attribute_name = '{0}_{1}s'.format(
-                        options.relationship,
-                        related_obj['type'].lower()
-                    )
-                    if potential_attribute_name in attrs:
-                        attribute_name = potential_attribute_name
-            if not options.unlink:
-                b.link(obj, attribute_name, related_obj)
+            #attribute_name = '{0}s'.format(
+                #options.objects[1].lower()
+            #)
+            #if obj['type'] in nonstandard_links:
+                #if related_obj['type'] in \
+                        #nonstandard_links[obj['type']]:
+                    #attrs = nonstandard_links[obj['type']][related_obj['type']]
+                    #potential_attribute_name = '{0}_{1}s'.format(
+                        #options.relationship,
+                        #related_obj['type'].lower()
+                    #)
+                    #if potential_attribute_name in attrs:
+                        #attribute_name = potential_attribute_name
+            if options.unlink:
+                b.unlink(obj, related_obj)
             else:
-                b.link(obj, attribute_name, related_obj, unlink=True)
+                b.link(obj, related_obj)
             b.commit()
         else:
             raise Exception('Two and only two arguments in link')
