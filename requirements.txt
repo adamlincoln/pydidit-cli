@@ -7,9 +7,6 @@ ipython==0.13.1
 modern-package-template==1.0
 nose==1.2.1
 pep8==1.3.3
-pydidit-backend==0.1
-pydidit-backend-web==0.1
-pydidit-cli==0.1
 requests==1.0.4
 simplejson==2.6.2
 transaction==1.3.0
