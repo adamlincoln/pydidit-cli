@@ -36,13 +36,13 @@ parser.add_option('--unlink', action='store_true', dest='unlink',
                   default=False)
 
 parser.add_option('-q', '--prereq', action='store_const', dest='relationship',
-                  const='prereq', default='contains')
+                  const='prereq', default='contain')
 parser.add_option('-d', '--dependent', action='store_const', dest='relationship',
-                  const='dependent', default='contains')
+                  const='dependent', default='contain')
 parser.add_option('-c', '--contains', action='store_const', dest='relationship',
-                  const='contains', default='contains')
+                  const='contain', default='contain')
 parser.add_option('-b', '--contained_by', action='store_const', dest='relationship',
-                  const='contained_by', default='contains')
+                  const='contained_by', default='contain')
 
 parser.add_option('--all', action='store_true', dest='all',
                   default=False)
@@ -61,34 +61,16 @@ else:
     import pydiditbackend as b
 
 
-#nonstandard_links = {
-    #'Todo': {
-        #'Project': set((
-            #'prereq_projects',
-            #'contained_by_projects',
-        #)),
-        #'Todo': set((
-            #'prereq_todos',
-            #'dependent_todos',
-        #)),
-    #},
-    #'Project': {
-        #'Project': set((
-            #'contains_projects',
-            #'contained_by_projects',
-            #'prereq_projects',
-            #'dependent_projects',
-        #)),
-        #'Todo': set((
-            #'contains_todos',
-            #'dependent_todos',
-        #)),
-    #},
-#}
-
+links_to_language = {
+    'contain': 'contains',
+    'contained_by': 'is contained by',
+}
 
 def main():
     options, args = parser.parse_args()
+
+    if options.objects is None or len(options.objects) == 0:
+        options.objects = ['Todo']
 
     config = StringIO()
     ini.write(config)
@@ -119,56 +101,20 @@ def main():
         elif options.operations[0] == 'unlink':
             lnk(options, args)
 
-
-def relationship_name(obj, options):
-    simplest_name = '{0}s'.format(options.objects[1])
-    if simplest_name in obj:
-        return simplest_name
-    else:
-        if 
-    #related_attribute_name = '{0}s'.format(
-        #options.objects[1].lower()
-    #)
-    #if obj['type'] in nonstandard_links:
-        #if options.objects[1] in \
-                #nonstandard_links[obj['type']]:
-            #attrs = nonstandard_links[obj['type']][options.objects[1]]
-            #potential_attribute_name = '{0}_{1}s'.format(
-                #options.relationship,
-                #options.objects[1].lower()
-            #)
-            #if potential_attribute_name in attrs:
-                #related_attribute_name = potential_attribute_name
-
-
 def read(options, args):
-    if len(options.objects) > 0:
-        objs = b.get(options.objects[0], options.all, filter_by=({'id': args[0]} if len(args) == 1 else None))
-        if len(options.objects) == 1:
-            print '{0}s:'.format(options.objects[0]), format(objs, options)
-        else:
-            for obj in objs:
-                print '{0}:'.format(options.objects[0]), format(obj, options)
-                #related_attribute_name = '{0}s'.format(
-                    #options.objects[1].lower()
-                #)
-                #if obj['type'] in nonstandard_links:
-                    #if options.objects[1] in \
-                            #nonstandard_links[obj['type']]:
-                        #attrs = nonstandard_links[obj['type']][options.objects[1]]
-                        #potential_attribute_name = '{0}_{1}s'.format(
-                            #options.relationship,
-                            #options.objects[1].lower()
-                        #)
-                        #if potential_attribute_name in attrs:
-                            #related_attribute_name = potential_attribute_name
-                related_attribute_name = b.relationship_name(obj
-                related_objs = obj[related_attribute_name]
-                print '\t{0}s:'.format(options.objects[1])
-                for related_obj in related_objs:
-                    if not 'state' in related_obj or options.all or related_obj['state'] != 'completed':
-                        print '\t', format(related_obj, options)
-
+    objs = b.get(options.objects[0], options.all, filter_by=({'id': args[0]} if args is not None and len(args) == 1 else None))
+    if len(options.objects) == 1:
+        print '{0}s:'.format(options.objects[0]), format(objs, options)
+    else:
+        for obj in objs:
+            print '{0}:'.format(options.objects[0]), format(obj, options)
+            print '{0}'.format(links_to_language[options.relationship])
+            related_attribute_name = b.relationship_name(obj['type'], options.objects[1], options.relationship)
+            related_objs = obj[related_attribute_name]
+            print '\t{0}s:'.format(options.objects[1])
+            for related_obj in related_objs:
+                if not 'state' in related_obj or options.all or related_obj['state'] != 'completed':
+                    print '\t', format(related_obj, options)
 
 def add(options, args):
     if len(options.objects) == 1:
@@ -186,10 +132,21 @@ def update(options, args):
                 options.objects[0],
                 filter_by={'id': int(args[0])}
             )[0]
-            for prop, value in (json.loads(args[1])).iteritems():
+            update = None
+            try:
+                update = json.loads(args[1]) # FIXME: is there something in simplejson that lets me just check whether a string is valid JSON?
+            except json.JSONDecodeError as e:
+                value = args[1]
                 if isinstance(value, str):
                     value = unicode(value)
-                b.set_attributes(to_update, {prop: value})
+                b.set_attributes(to_update, {
+                    to_update['primary_descriptor']: value
+                })
+            else:
+                for prop, value in (json.loads(args[1])).iteritems():
+                    if isinstance(value, str):
+                        value = unicode(value)
+                    b.set_attributes(to_update, {prop: value})
             print 'Updated:', format(to_update, options)
             b.commit()
         else:
@@ -275,23 +232,10 @@ def lnk(options, args):
                 options.objects[1],
                 filter_by={'id': int(args[1])}
             )[0]
-            #attribute_name = '{0}s'.format(
-                #options.objects[1].lower()
-            #)
-            #if obj['type'] in nonstandard_links:
-                #if related_obj['type'] in \
-                        #nonstandard_links[obj['type']]:
-                    #attrs = nonstandard_links[obj['type']][related_obj['type']]
-                    #potential_attribute_name = '{0}_{1}s'.format(
-                        #options.relationship,
-                        #related_obj['type'].lower()
-                    #)
-                    #if potential_attribute_name in attrs:
-                        #attribute_name = potential_attribute_name
             if options.unlink:
-                b.unlink(obj, related_obj)
+                b.unlink(obj, related_obj, options.relationship)
             else:
-                b.link(obj, related_obj)
+                b.link(obj, related_obj, options.relationship)
             b.commit()
         else:
             raise Exception('Two and only two arguments in link')
