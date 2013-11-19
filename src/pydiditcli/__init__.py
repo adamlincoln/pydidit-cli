@@ -62,8 +62,12 @@ else:
 
 
 links_to_language = {
-    'contain': 'contains',
-    'contained_by': 'is contained by',
+    'contains_projects': 'contains',
+    'contains_todos': 'contains',
+    'contained_by_projects': 'is contained by',
+    'tags': 'has tags',
+    'todos': 'has todos',
+    'notes': 'has notes',
 }
 
 def main():
@@ -108,8 +112,8 @@ def read(options, args):
     else:
         for obj in objs:
             print '{0}:'.format(options.objects[0]), format(obj, options)
-            print '{0}'.format(links_to_language[options.relationship])
             related_attribute_name = b.relationship_name(obj['type'], options.objects[1], options.relationship)
+            print '{0}'.format(links_to_language[related_attribute_name])
             related_objs = obj[related_attribute_name]
             print '\t{0}s:'.format(options.objects[1])
             for related_obj in related_objs:
