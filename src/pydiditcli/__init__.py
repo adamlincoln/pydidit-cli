@@ -254,32 +254,33 @@ def lnk(options, args):
 def format(thing, options):
     if thing is None:
         return ''
-    if hasattr(thing, '__iter__'):
-        if hasattr(thing, 'keys'):  # I'm a dict
-            info = []
-            if 'description' in thing:
-                info.append(thing['description'])
-            elif 'text' in thing:
-                info.append(thing['text'])
-            elif 'name' in thing:
-                info.append(thing['name'])
-            if options.verbose is True:
-                if 'display_position' in thing:
-                    info.append(thing['display_position'])
-                if 'created_at' in thing:
-                    info.append(thing['created_at'].strftime('%Y-%m-%d %H:%M'))
-                if 'modified_at' in thing:
-                    info.append(thing['modified_at'].strftime('%Y-%m-%d %H:%M'))
-            return '{0} id {1}{2}: {3}'.format(
-                thing['type'],
-                thing['id'],
-                ' ({0})'.format(thing['state']) if 'state' in thing else '',
-                '  '.join(info),
-            )
-        else:  # I'm a list
-            return '\n'.join(
-                ['\t* {0}'.format(
-                    format(element, options)
-                ) for element in thing]
-            )
+    elif hasattr(thing, 'keys'):  # I'm a dict
+        info = []
+        if 'description' in thing:
+            info.append(thing['description'])
+        elif 'text' in thing:
+            info.append(thing['text'])
+        elif 'name' in thing:
+            info.append(thing['name'])
+        if options.verbose is True:
+            if 'display_position' in thing:
+                info.append(thing['display_position'])
+            if 'created_at' in thing:
+                info.append(thing['created_at'].strftime('%Y-%m-%d %H:%M'))
+            if 'modified_at' in thing:
+                info.append(thing['modified_at'].strftime('%Y-%m-%d %H:%M'))
+        return '{0} id {1}{2}: {3}'.format(
+            thing['type'],
+            thing['id'],
+            ' ({0})'.format(thing['state']) if 'state' in thing else '',
+            '  '.join(info),
+        )
+    elif (hasattr(thing, '__iter__') or hasattr(thing, '__getitem__')) and not isinstance(thing, basestring): # I'm a list
+        return '\n'.join(
+            ['\t* {0}'.format(
+                format(element, options)
+            ) for element in thing]
+        )
+    else:
+        return thing
 
