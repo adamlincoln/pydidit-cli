@@ -70,6 +70,7 @@ links_to_language = {
     'dependent_todos': 'has dependent todos',
     'dependent_projects': 'has dependent projects',
     'tags': 'has tags',
+    'projects': 'has projects',
     'todos': 'has todos',
     'notes': 'has notes',
 }
