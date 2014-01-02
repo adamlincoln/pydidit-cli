@@ -131,7 +131,7 @@ def read(options, args):
 def add(options, args):
     if len(options.objects) == 1:
         created = b.put(options.objects[0], unicode(args[0]))
-        if options.top:
+        if options.top and 'display_position' in created:
             objs = b.get(options.objects[0])
             while objs[0]['id'] != created['id']:
                 _flt(objs, created['id'])
@@ -206,21 +206,43 @@ def complete(options, args):
 
 def flt(options, args):
     if len(options.objects) == 1:
+        id_to_float = int(args[0])
+        float_past_position = None
+        objs = b.get(options.objects[0])
         if len(args) == 1:
-            objs = b.get(options.objects[0])
-            _flt(objs, int(args[0]))
-            b.commit()
+            if options.top:
+                float_past_position = 0
+            else: # Just float once
+                _flt(objs, id_to_float)
+                b.commit()
+                return
+        elif len(args) == 2:
+            for i in xrange(len(objs)):
+                if objs[i]['id'] == int(args[1]):
+                    float_past_position = i
+                    break
         else:
-            raise Exception('One and only one arguments in float')
+            raise Exception('One or two arguments in float')
+        while objs[float_past_position]['id'] != id_to_float:
+            _flt(objs, id_to_float)
+        b.commit()
     else:
         raise Exception('One and only one object in float')
 
 
+# These are redundant, but leaving them this way for clarity.
 def _flt(objs, to_float):
     for i in xrange(len(objs)):
         obj = objs[i]
         if obj['id'] == to_float:
             objs[i - 1], objs[i] = b.swap_display_positions(obj, objs[i - 1])
+    
+
+def _sink(objs, to_sink):
+    for i in xrange(len(objs)):
+        obj = objs[i]
+        if obj['id'] == to_sink:
+            objs[i + 1], objs[i] = b.swap_display_positions(obj, objs[i + 1])
     
 
 def sink(options, args):
