@@ -201,13 +201,11 @@ def flt(options, args):
     if len(options.objects) == 1:
         if len(args) == 1:
             objs = b.get(options.objects[0])
-            for obj in objs:
+            for i in xrange(len(objs)):
+                obj = objs[i]
                 if obj['id'] == int(args[0]):
-                    idx = objs.index(obj)
-                    if idx != 0:
-                        temp = objs[idx - 1]['display_position']
-                        b.set_attributes(objs[idx - 1], {'display_position': obj['display_position']})
-                        b.set_attributes(obj, {'display_position': temp})
+                    b.swap_display_positions(obj, objs[i - 1])
+                    break
             b.commit()
         else:
             raise Exception('One and only one arguments in float')
@@ -219,13 +217,11 @@ def sink(options, args):
     if len(options.objects) == 1:
         if len(args) == 1:
             objs = b.get(options.objects[0])
-            for obj in objs:
+            for i in xrange(len(objs)):
+                obj = objs[i]
                 if obj['id'] == int(args[0]):
-                    idx = objs.index(obj)
-                    if idx != len(objs) - 1:
-                        temp = objs[idx + 1]['display_position']
-                        b.set_attributes(objs[idx + 1], {'display_position': obj['display_position']})
-                        b.set_attributes(obj, {'display_position': temp})
+                    b.swap_display_positions(obj, objs[i + 1])
+                    break
             b.commit()
         else:
             raise Exception('One and only one arguments in sink')
