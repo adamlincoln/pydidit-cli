@@ -44,6 +44,9 @@ parser.add_option('-c', '--contains', action='store_const', dest='relationship',
 parser.add_option('-b', '--contained_by', action='store_const', dest='relationship',
                   const='contained_by', default='contain')
 
+parser.add_option('-1', '--top', action='store_true', dest='top',
+                  default=False)
+
 parser.add_option('--all', action='store_true', dest='all',
                   default=False)
 parser.add_option('-v', '--verbose', action='store_true', dest='verbose',
@@ -128,6 +131,10 @@ def read(options, args):
 def add(options, args):
     if len(options.objects) == 1:
         created = b.put(options.objects[0], unicode(args[0]))
+        if options.top:
+            objs = b.get(options.objects[0])
+            while objs[0]['id'] != created['id']:
+                _flt(objs, created['id'])
         print 'Created:', format(created, options)
         b.commit()
     else:
@@ -201,17 +208,20 @@ def flt(options, args):
     if len(options.objects) == 1:
         if len(args) == 1:
             objs = b.get(options.objects[0])
-            for i in xrange(len(objs)):
-                obj = objs[i]
-                if obj['id'] == int(args[0]):
-                    b.swap_display_positions(obj, objs[i - 1])
-                    break
+            _flt(objs, int(args[0]))
             b.commit()
         else:
             raise Exception('One and only one arguments in float')
     else:
         raise Exception('One and only one object in float')
 
+
+def _flt(objs, to_float):
+    for i in xrange(len(objs)):
+        obj = objs[i]
+        if obj['id'] == to_float:
+            objs[i - 1], objs[i] = b.swap_display_positions(obj, objs[i - 1])
+    
 
 def sink(options, args):
     if len(options.objects) == 1:
