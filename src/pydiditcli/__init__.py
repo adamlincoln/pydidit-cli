@@ -141,9 +141,9 @@ def add(options, args):
     if len(options.objects) == 1:
         created = b.put(options.objects[0], unicode(args[0]))
         if options.top and 'display_position' in created:
-            objs = get(options.objects[0])[0]
+            objs, id_to_index = get(options.objects[0])
             while objs[0]['id'] != created['id']:
-                _move(objs, created['id'])
+                _move(objs, created['id'], id_to_index, 'float')
         print 'Created:', format(created, options)
         b.commit()
     else:
