@@ -303,7 +303,7 @@ def format(thing, options):
             info.append(thing['name'])
         if options.verbose is True:
             if 'display_position' in thing:
-                info.append(thing['display_position'])
+                info.append(str(thing['display_position']))
             if 'created_at' in thing:
                 info.append(thing['created_at'].strftime('%Y-%m-%d %H:%M'))
             if 'modified_at' in thing:
