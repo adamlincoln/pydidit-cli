@@ -49,6 +49,8 @@ parser.add_option('-1', '--top', action='store_true', dest='top',
 parser.add_option('--bottom', action='store_true', dest='bottom',
                   default=False)
 
+parser.add_option('--head', action='store_true', dest='head',
+                  default=False)
 parser.add_option('--all', action='store_true', dest='all',
                   default=False)
 parser.add_option('-v', '--verbose', action='store_true', dest='verbose',
@@ -123,7 +125,11 @@ def get(model_name, all=False, filter_by=None):
     return objs, id_to_array_index
 
 def read(options, args):
-    objs = get(options.objects[0], options.all, filter_by=({'id': args[0]} if args is not None and len(args) == 1 else None))[0]
+    objs = None
+    filter_by = {'id': args[0]} if not options.head and args is not None and len(args) == 1 else None
+    objs = get(options.objects[0], options.all, filter_by)[0]
+    if options.head:
+        objs = objs[:int(args[0])]
     if len(options.objects) == 1:
         print '{0}s:'.format(options.objects[0]), format(objs, options)
     else:
