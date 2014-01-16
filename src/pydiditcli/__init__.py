@@ -221,7 +221,7 @@ def lnk(options, args):
     if len(options.objects) == 2:
         if len(args) == 2:
             obj = b.get(options.objects[0], filter_by={'id': int(args[0])})[0]
-            related_obj = get(
+            related_obj = b.get(
                 options.objects[1],
                 filter_by={'id': int(args[1])}
             )[0]
