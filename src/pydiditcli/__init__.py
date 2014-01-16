@@ -29,6 +29,8 @@ parser.add_option('-f', '--float', action='append_const', const='float',
                   dest='operations')
 parser.add_option('-s', '--sink', action='append_const', const='sink',
                   dest='operations')
+parser.add_option('-m', '--move', action='append_const', const='move',
+                  dest='operations')
 parser.add_option('-l', '--link', action='append_const', const='link',
                   dest='operations')
 
@@ -109,25 +111,23 @@ def main():
         elif options.operations[0] == 'complete':
             complete(options, args)
         elif options.operations[0] == 'float':
-            move(options, args, 'float')
+            b.move(int(args[0]), direction='float', model_name=options.objects[0], all_the_way=options.top)
+            b.commit()
         elif options.operations[0] == 'sink':
-            move(options, args, 'sink')
+            b.move(int(args[0]), direction='sink', model_name=options.objects[0], all_the_way=options.bottom)
+            b.commit()
+        elif options.operations[0] == 'move':
+            b.move(int(args[0]), int(args[1]), model_name=options.objects[0])
+            b.commit()
         elif options.operations[0] == 'link':
             lnk(options, args)
         elif options.operations[0] == 'unlink':
             lnk(options, args)
 
-def get(model_name, all=False, filter_by=None):
-    objs = b.get(model_name, all, filter_by)
-    id_to_array_index = {}
-    for i in xrange(len(objs)):
-        id_to_array_index[objs[i]['id']] = i
-    return objs, id_to_array_index
-
 def read(options, args):
     objs = None
     filter_by = {'id': args[0]} if not options.head and args is not None and len(args) == 1 else None
-    objs = get(options.objects[0], options.all, filter_by)[0]
+    objs = b.get(options.objects[0], options.all, filter_by)
     if options.head:
         objs = objs[:int(args[0])]
     if len(options.objects) == 1:
@@ -147,9 +147,7 @@ def add(options, args):
     if len(options.objects) == 1:
         created = b.put(options.objects[0], unicode(args[0]))
         if options.top and 'display_position' in created:
-            objs, id_to_index = get(options.objects[0])
-            while objs[0]['id'] != created['id']:
-                _move(objs, created['id'], id_to_index, 'float')
+            b.move(created, direction='float', all_the_way=True)
         print 'Created:', format(created, options)
         b.commit()
     else:
@@ -159,10 +157,10 @@ def add(options, args):
 def update(options, args):
     if len(options.objects) == 1:
         if len(args) == 2:
-            to_update = get(
+            to_update = b.get(
                 options.objects[0],
                 filter_by={'id': int(args[0])}
-            )[0][0]
+            )[0]
             update = None
             try:
                 update = json.loads(args[1]) # FIXME: is there something in simplejson that lets me just check whether a string is valid JSON?
@@ -189,10 +187,10 @@ def update(options, args):
 def delete(options, args):
     if len(options.objects) == 1:
         if len(args) == 1:
-            to_delete = get(
+            to_delete = b.get(
                 options.objects[0],
                 filter_by={'id': int(args[0])}
-            )[0][0]
+            )[0]
             b.delete_from_db(to_delete)
             print 'Deleted:', format(to_delete, options)
             b.commit()
@@ -205,10 +203,10 @@ def delete(options, args):
 def complete(options, args):
     if len(options.objects) == 1:
         if len(args) == 1:
-            to_complete = get(
+            to_complete = b.get(
                 options.objects[0],
                 filter_by={'id': int(args[0])}
-            )[0][0]
+            )[0]
             result = b.set_completed(to_complete)
             if result is not None:
                 print 'Completed:', format(to_complete, options)
@@ -219,72 +217,14 @@ def complete(options, args):
         raise Exception('One and only one object in complete')
 
 
-def move(options, args, direction=None):
-    # Ultimately I'd like this moved to the backend.
-    # Here's what breaks this:
-    # -st --bottom <the bottom id> # infinite loop! the while condition never fails because it's always zero, but nothing changes.
-    # -st <id> <same id or id positioned above it> # infinite loop! the while condition never fails because it's always zero, but nothing changes.
-    # -ft <id> <same id or id positioned below it> # infinite loop! the while condition never fails because it's always zero, but nothing changes.
-    if len(options.objects) == 1:
-        if direction is None or direction == 'float' or direction == 'sink':
-            move_id = int(args[0])
-            objs, id_to_index = get(options.objects[0])
-            if len(args) == 1:
-                if not options.top and not options.bottom: # Just move once
-                    if direction is None:
-                        raise Exception('Direction must be specified in move when stepping up or down one position')
-                    _move(objs, move_id, id_to_index, direction)
-                    b.commit()
-                    return
-            elif len(args) != 2:
-                raise Exception('One or two arguments in float or sink')
-
-            move_anchor_expr = None
-            if options.top:
-                move_anchor_expr = '1'
-            elif options.bottom:
-                move_anchor_expr = 'len(objs) - 1'
-            else:
-                move_anchor_expr = 'id_to_index[int(args[1])]'
-            while eval(move_anchor_expr) - id_to_index[move_id] != 1:
-                _move(objs, move_id, id_to_index, direction)
-            if options.bottom: # Once more to get it to the bottom
-                _move(objs, move_id, id_to_index, direction)
-            b.commit()
-        else:
-            raise Exception('Bad direction in move: {0}'.format(direction))
-    else:
-        raise Exception('One and only one object in float or sink')
-
-
-def _move(objs, move_id, id_to_index, direction):
-    if direction == 'float' or direction == 'sink':
-        offset = None
-        if direction == 'float':
-            offset = -1
-        elif direction == 'sink':
-            offset = 1
-        move_index = id_to_index[move_id]
-        if move_index + offset >= 0 and move_index + offset < len(objs):
-            objs[move_index + offset], objs[move_index] = b.swap_display_positions(
-                objs[move_index],
-                objs[move_index + offset]
-            )
-            # Now update id_to_index
-            id_to_index[move_id] = id_to_index[move_id] + offset
-            id_to_index[objs[move_index]['id']] = id_to_index[objs[move_index]['id']] - offset
-    else:
-        raise Exception('Bad direction in _move: {0}'.format(direction))
- 
-
 def lnk(options, args):
     if len(options.objects) == 2:
         if len(args) == 2:
-            obj = get(options.objects[0], filter_by={'id': int(args[0])})[0][0]
+            obj = b.get(options.objects[0], filter_by={'id': int(args[0])})[0][0]
             related_obj = get(
                 options.objects[1],
                 filter_by={'id': int(args[1])}
-            )[0][0]
+            )[0]
             if options.unlink:
                 b.unlink(obj, related_obj, options.relationship)
             else:
