@@ -143,11 +143,15 @@ def read(options, args):
                 if not 'state' in related_obj or options.all or related_obj['state'] != 'completed':
                     print '\t', format(related_obj, options)
 
+
 def add(options, args):
     if len(options.objects) == 1:
-        created = b.put(options.objects[0], unicode(args[0]))
-        if options.top and 'display_position' in created:
-            b.move(created, direction='float', all_the_way=True)
+        created = b.put(options.objects[0], [unicode(arg) for arg in args])
+        if isinstance(created, dict):
+            created = [created]
+        if options.top and 'display_position' in created[0]:
+            for obj in created:
+                b.move(obj, direction='float', all_the_way=True)
         print 'Created:', format(created, options)
         b.commit()
     else:
