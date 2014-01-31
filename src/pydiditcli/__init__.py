@@ -33,6 +33,8 @@ parser.add_option('-m', '--move', action='append_const', const='move',
                   dest='operations')
 parser.add_option('-l', '--link', action='append_const', const='link',
                   dest='operations')
+parser.add_option('-?', '--search', action='append_const', const='search',
+                  dest='operations')
 
 parser.add_option('--unlink', action='store_true', dest='unlink',
                   default=False)
@@ -88,7 +90,8 @@ def main():
     options, args = parser.parse_args()
 
     if options.objects is None or len(options.objects) == 0:
-        options.objects = ['Todo']
+        if options.operations is None or 'search' not in options.operations:
+            options.objects = ['Todo']
 
     config = StringIO()
     ini.write(config)
@@ -123,6 +126,8 @@ def main():
             lnk(options, args)
         elif options.operations[0] == 'unlink':
             lnk(options, args)
+        elif options.operations[0] == 'search':
+            search(options, args)
 
 def read(options, args):
     objs = None
@@ -219,6 +224,18 @@ def complete(options, args):
             raise Exception('One and only one argument in complete')
     else:
         raise Exception('One and only one object in complete')
+
+
+def search(options, args):
+    if len(args) == 1:
+        only = None
+        if options.objects is not None:
+            only = options.objects
+        result = b.search(args[0], only=only)
+        for obj_name, data in result.iteritems():
+            print '{0}s:'.format(obj_name), format(data, options)
+    else:
+        raise Exception('One and only one argument in search')
 
 
 def lnk(options, args):
