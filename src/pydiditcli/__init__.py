@@ -6,6 +6,11 @@ import simplejson as json
 
 parser = OptionParser()
 
+parser.add_option('--user', action='store', nargs=1, type='string',
+                  dest='username')
+parser.add_option('--workspace-name', action='store', nargs=1, type='string',
+                  dest='workspace_name')
+
 parser.add_option('-t', '--todo', const='Todo', action='append_const',
                   dest='objects')
 parser.add_option('-g', '--tag', const='Tag', action='append_const',
@@ -13,6 +18,8 @@ parser.add_option('-g', '--tag', const='Tag', action='append_const',
 parser.add_option('-p', '--project', const='Project', action='append_const',
                   dest='objects')
 parser.add_option('-n', '--note', const='Note', action='append_const',
+                  dest='objects')
+parser.add_option('-w', '--workspace', const='Workspace', action='append_const',
                   dest='objects')
 
 parser.add_option('-a', '--add', action='append_const', const='add',
@@ -33,11 +40,10 @@ parser.add_option('-m', '--move', action='append_const', const='move',
                   dest='operations')
 parser.add_option('-l', '--link', action='append_const', const='link',
                   dest='operations')
-parser.add_option('-?', '--search', action='append_const', const='search',
-                  dest='operations')
-
 parser.add_option('--unlink', action='store_true', dest='unlink',
                   default=False)
+parser.add_option('-?', '--search', action='append_const', const='search',
+                  dest='operations')
 
 parser.add_option('-q', '--prereq', action='store_const', dest='relationship',
                   const='prereq', default='contain')
@@ -59,6 +65,13 @@ parser.add_option('--all', action='store_true', dest='all',
                   default=False)
 parser.add_option('-v', '--verbose', action='store_true', dest='verbose',
                   default=False)
+
+parser.add_option('--add-user', action='store', nargs=1, type='string',
+                  dest='add_user')
+parser.add_option('--add-workspace-permission', action='store', nargs=2,
+                  type='string', dest='add_workspace_permission')
+parser.add_option('--revoke-workspace-permission', action='store', nargs=2,
+                  type='string', dest='revoke_workspace_permission')
 
 
 ini = ConfigParser.SafeConfigParser()
@@ -98,6 +111,64 @@ def main():
     config.seek(0)
     b.initialize(external_config_fp=config)
 
+    cli_settings = dict(ini.items('cli'))
+
+    # First, check for add user request
+    if hasattr(options, 'add_user') and options.add_user is not None:
+        b.create_user(unicode(options.add_user))
+        b.commit()
+        return
+
+    username = \
+        cli_settings['username'] if 'username' in cli_settings else None
+    if hasattr(options, 'username') and options.username is not None:
+        username = options.username
+
+    if username is None:
+        print 'No username defined'
+        return
+
+    users = b.get_users(unicode(username))
+    if len(users) == 0:
+        print 'User {0} not found.'.format(username)
+        return
+    if len(users) > 1:
+        print 'Multiple users with username {0} found - this is unsupported.'\
+            .format(username)
+        return
+    options.user_id = users[0]['user_id']
+
+    workspace_name = cli_settings['workspace'] \
+                     if 'workspace' in cli_settings \
+                     else None
+    if hasattr(options, 'workspace_name') and options.workspace_name is not None:
+        workspace_name = options.workspace_name
+
+    workspaces = b.get_workspaces(options.user_id, unicode(workspace_name))
+    if len(workspaces) == 0:
+        print 'Workspace {0} not found.'.format(workspace_name)
+        return
+    if len(workspaces) > 1:
+        print 'Multiple workspaces with name {0} found - this is ' \
+              'unsupported.'.format(workspace_name)
+        return
+    options.workspace_id = workspaces[0]['workspace_id']
+
+    # Next, check for add workspace permission or revoke workspace permission
+    # request
+    handled_workspace_permission = False
+    for workspace_permission in (
+        'add_workspace_permission',
+        'revoke_workspace_permission'
+    ):
+        if getattr(options, workspace_permission, None) is not None:
+            globals()[workspace_permission](options)
+            handled_workspace_permission = True
+
+    # Don't keep going if we did workspace permission work
+    if handled_workspace_permission:
+        return
+
     if options.operations is None:
         read(options, args)
     elif len(options.operations) > 1:
@@ -114,13 +185,16 @@ def main():
         elif options.operations[0] == 'complete':
             complete(options, args)
         elif options.operations[0] == 'float':
-            b.move(int(args[0]), direction='float', model_name=options.objects[0], all_the_way=options.top)
+            b.move(options.user_id, options.workspace_id, int(args[0]),
+                direction='float', model_name=options.objects[0], all_the_way=options.top)
             b.commit()
         elif options.operations[0] == 'sink':
-            b.move(int(args[0]), direction='sink', model_name=options.objects[0], all_the_way=options.bottom)
+            b.move(options.user_id, options.workspace_id, int(args[0]),
+                direction='sink', model_name=options.objects[0], all_the_way=options.bottom)
             b.commit()
         elif options.operations[0] == 'move':
-            b.move(int(args[0]), int(args[1]), model_name=options.objects[0])
+            b.move(options.user_id, options.workspace_id, int(args[0]),
+                int(args[1]), model_name=options.objects[0])
             b.commit()
         elif options.operations[0] == 'link':
             lnk(options, args)
@@ -132,7 +206,7 @@ def main():
 def read(options, args):
     objs = None
     filter_by = {'id': args[0]} if not options.head and args is not None and len(args) == 1 else None
-    objs = b.get(options.objects[0], options.all, filter_by)
+    objs = b.get(options.user_id, options.workspace_id, options.objects[0], options.all, filter_by)
     if options.head:
         objs = objs[:int(args[0])]
     if len(options.objects) == 1:
@@ -151,13 +225,17 @@ def read(options, args):
 
 def add(options, args):
     if len(options.objects) == 1:
-        created = b.put(options.objects[0], [unicode(arg) for arg in args])
-        if isinstance(created, dict):
-            created = [created]
-        if options.top and 'display_position' in created[0]:
-            for obj in created:
-                b.move(obj, direction='float', all_the_way=True)
-        print 'Created:', format(created, options)
+        if options.objects[0] == 'Workspace':
+            # We are handling Workspace descriptions
+            new_workspaces = b.create_workspace(options.user_id, [unicode(arg) for arg in args], [u'' for arg in args])
+        else:
+            created = b.put(options.user_id, options.workspace_id, options.objects[0], [unicode(arg) for arg in args])
+            if isinstance(created, dict):
+                created = [created]
+            if options.top and 'display_position' in created[0]:
+                for obj in created:
+                    b.move(options.user_id, options.workspace_id, obj, direction='float', all_the_way=True)
+            print 'Created:', format(created, options)
         b.commit()
     else:
         raise Exception('One and only one object in add')
@@ -167,6 +245,8 @@ def update(options, args):
     if len(options.objects) == 1:
         if len(args) == 2:
             to_update = b.get(
+                options.user_id,
+                options.workspace_id,
                 options.objects[0],
                 filter_by={'id': int(args[0])}
             )[0]
@@ -177,14 +257,15 @@ def update(options, args):
                 value = args[1]
                 if isinstance(value, str):
                     value = unicode(value)
-                b.set_attributes(to_update, {
+                b.set_attributes(options.user_id, options.workspace_id, to_update, {
                     to_update['primary_descriptor']: value
                 })
             else:
                 for prop, value in (json.loads(args[1])).iteritems():
                     if isinstance(value, str):
                         value = unicode(value)
-                    b.set_attributes(to_update, {prop: value})
+                    b.set_attributes(options.user_id, options.workspace_id,
+                        to_update, {prop: value})
             print 'Updated:', format(to_update, options)
             b.commit()
         else:
@@ -197,12 +278,17 @@ def delete(options, args):
     if len(options.objects) == 1:
         if len(args) == 1:
             to_delete = b.get(
-                options.objects[0],
+                options.user_id, options.workspace_id, options.objects[0],
                 filter_by={'id': int(args[0])}
-            )[0]
-            b.delete_from_db(to_delete)
-            print 'Deleted:', format(to_delete, options)
-            b.commit()
+            )
+            if len(to_delete) > 0:
+                deleted = b.delete_from_db(options.user_id, options.workspace_id, to_delete[0])
+                print 'Deleted:', format(deleted, options)
+                b.commit()
+            else:
+                raise Exception('Todo with id {0} not found.'.format(
+                    args[0]
+                ))
         else:
             raise Exception('One and only one argument in delete')
     else:
@@ -213,10 +299,10 @@ def complete(options, args):
     if len(options.objects) == 1:
         if len(args) == 1:
             to_complete = b.get(
-                options.objects[0],
+                options.user_id, options.workspace_id, options.objects[0],
                 filter_by={'id': int(args[0])}
             )[0]
-            result = b.set_completed(to_complete)
+            result = b.set_completed(options.user_id, options.workspace_id, to_complete)
             if result is not None:
                 print 'Completed:', format(to_complete, options)
                 b.commit()
@@ -231,7 +317,7 @@ def search(options, args):
         only = None
         if options.objects is not None:
             only = options.objects
-        result = b.search(args[0], only=only)
+        result = b.search(options.user_id, options.workspace_id, args[0], only=only)
         for obj_name, data in result.iteritems():
             print '{0}s:'.format(obj_name), format(data, options)
     else:
@@ -241,20 +327,60 @@ def search(options, args):
 def lnk(options, args):
     if len(options.objects) == 2:
         if len(args) == 2:
-            obj = b.get(options.objects[0], filter_by={'id': int(args[0])})[0]
+            obj = b.get(options.user_id, options.workspace_id,
+                options.objects[0], filter_by={'id': int(args[0])})[0]
             related_obj = b.get(
-                options.objects[1],
-                filter_by={'id': int(args[1])}
+                options.user_id, options.workspace_id,
+                options.objects[1], filter_by={'id': int(args[1])}
             )[0]
             if options.unlink:
-                b.unlink(obj, related_obj, options.relationship)
+                b.unlink(options.user_id, options.workspace_id, obj,
+                    related_obj, options.relationship)
             else:
-                b.link(obj, related_obj, options.relationship)
+                b.link(options.user_id, options.workspace_id, obj,
+                    related_obj, options.relationship)
             b.commit()
         else:
             raise Exception('Two and only two arguments in link')
     else:
         raise Exception('Two and only two objects in link')
+
+
+def add_workspace_permission(options):
+    change_workspace_permission(
+        options,
+        options.add_workspace_permission[0],
+        options.add_workspace_permission[1].split(','),
+        b.give_permission
+     )
+
+def revoke_workspace_permission(options):
+    change_workspace_permission(
+        options,
+        options.revoke_workspace_permission[0],
+        options.revoke_workspace_permission[1].split(','),
+        b.revoke_permission
+     )
+
+def change_workspace_permission(options, target_user_info, permissions,
+                                backend_function):
+    if isinstance(target_user_info, basestring):
+        target_users = b.get_users(unicode(target_user_info))
+        if len(target_users) == 0:
+            print 'Target user {0} not found.'.format(target_user_info)
+            return
+        if len(target_users) > 1:
+            print 'Multiple target users with username {0} found - ' \
+                  'this is unsupported.'.format(target_user_info)
+            return
+        target_user_info = target_users[0]['user_id']
+    print backend_function(
+        options.user_id,
+        options.workspace_id,
+        target_user_info,
+        permissions
+    )
+    b.commit()
 
 
 def format(thing, options):
@@ -269,6 +395,11 @@ def format(thing, options):
         elif 'name' in thing:
             info.append(thing['name'])
         if options.verbose is True:
+            if 'workspaces' in thing:
+                workspace_names = []
+                for workspace in thing['workspaces']:
+                    workspace_names.append(workspace['name'])
+                info.append(' '.join(workspace_names))
             if 'display_position' in thing:
                 info.append(str(thing['display_position']))
             if 'created_at' in thing:
