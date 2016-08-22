@@ -230,6 +230,8 @@ def add(options, args):
             new_workspaces = b.create_workspace(options.user_id, [unicode(arg) for arg in args], [u'' for arg in args])
         else:
             created = b.put(options.user_id, options.workspace_id, options.objects[0], [unicode(arg) for arg in args])
+            if len(created) == 0:
+                raise Exception('Write forbidden.')
             if isinstance(created, dict):
                 created = [created]
             if options.top and 'display_position' in created[0]:
