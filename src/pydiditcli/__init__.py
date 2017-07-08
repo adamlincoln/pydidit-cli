@@ -3,6 +3,7 @@ from cStringIO import StringIO
 import os
 from optparse import OptionParser
 import simplejson as json
+import sys
 
 parser = OptionParser()
 
@@ -73,10 +74,12 @@ parser.add_option('--add-workspace-permission', action='store', nargs=2,
 parser.add_option('--revoke-workspace-permission', action='store', nargs=2,
                   type='string', dest='revoke_workspace_permission')
 
+parser.add_option('--trade-initial-token', action='store', nargs=1,
+                  type='string', dest='initial_token')
+
 
 ini = ConfigParser.SafeConfigParser()
-ini.read((os.path.expanduser('~/.pydiditrc'),
-          os.path.expanduser('~/.pydidit-clirc'),))
+ini.read((os.path.expanduser('~/.pydidit-clirc'),))
 
 backend_settings = dict(ini.items('backend'))
 if 'remote' in backend_settings and backend_settings['remote']:
@@ -99,30 +102,50 @@ links_to_language = {
     'notes': 'has notes',
 }
 
+def get_username(options, cli_settings):
+    username = \
+        cli_settings['username'] if 'username' in cli_settings else None
+    if hasattr(options, 'username') and options.username is not None:
+        username = options.username
+    return username
+
 def main():
     options, args = parser.parse_args()
+
+    b.initialize()
+
+    cli_settings = dict(ini.items('cli'))
+
+    username = get_username(options, cli_settings)
+
+    if 'remote' in backend_settings and backend_settings['remote']:
+        if hasattr(options, 'initial_token') and \
+           options.initial_token is not None:
+            try:
+                b.trade_initial_token(username, options.initial_token)
+            except b.RemoteException as e:
+                if e.code == 403:
+                    print 'Your initial token was not accepted.  Please ' \
+                          'check with your pydidit administrator.'
+                    sys.exit(1)
+                else:
+                    raise e
+            print 'Successfully authenticated!'
+            return
+        else:
+            if not b.check_initial_token(username):
+                print 'Please use the --trade-initial-token option to authenticate.'
+                sys.exit(1)
 
     if options.objects is None or len(options.objects) == 0:
         if options.operations is None or 'search' not in options.operations:
             options.objects = ['Todo']
 
-    config = StringIO()
-    ini.write(config)
-    config.seek(0)
-    b.initialize(external_config_fp=config)
-
-    cli_settings = dict(ini.items('cli'))
-
-    # First, check for add user request
+    # Check for add user request
     if hasattr(options, 'add_user') and options.add_user is not None:
         b.create_user(unicode(options.add_user))
         b.commit()
         return
-
-    username = \
-        cli_settings['username'] if 'username' in cli_settings else None
-    if hasattr(options, 'username') and options.username is not None:
-        username = options.username
 
     if username is None:
         print 'No username defined'
@@ -144,30 +167,33 @@ def main():
     if hasattr(options, 'workspace_name') and options.workspace_name is not None:
         workspace_name = options.workspace_name
 
-    workspaces = b.get_workspaces(options.user_id, unicode(workspace_name))
-    if len(workspaces) == 0:
-        print 'Workspace {0} not found.'.format(workspace_name)
-        return
-    if len(workspaces) > 1:
-        print 'Multiple workspaces with name {0} found - this is ' \
-              'unsupported.'.format(workspace_name)
-        return
-    options.workspace_id = workspaces[0]['workspace_id']
+    # If we just want to operate on workspaces, ignore the configured
+    # workspace
+    if len(options.objects) != 1 or options.objects[0] != 'Workspace':
+        workspaces = b.get_workspaces(options.user_id, unicode(workspace_name))
+        if len(workspaces) == 0:
+            print 'Workspace {0} not found.'.format(workspace_name)
+            return
+        if len(workspaces) > 1:
+            print 'Multiple workspaces with name {0} found - this is ' \
+                  'unsupported.'.format(workspace_name)
+            return
+        options.workspace_id = workspaces[0]['id']
 
-    # Next, check for add workspace permission or revoke workspace permission
-    # request
-    handled_workspace_permission = False
-    for workspace_permission in (
-        'add_workspace_permission',
-        'revoke_workspace_permission'
-    ):
-        if getattr(options, workspace_permission, None) is not None:
-            globals()[workspace_permission](options)
-            handled_workspace_permission = True
+        # Next, check for add workspace permission or revoke workspace permission
+        # request
+        handled_workspace_permission = False
+        for workspace_permission in (
+            'add_workspace_permission',
+            'revoke_workspace_permission'
+        ):
+            if getattr(options, workspace_permission, None) is not None:
+                globals()[workspace_permission](options)
+                handled_workspace_permission = True
 
-    # Don't keep going if we did workspace permission work
-    if handled_workspace_permission:
-        return
+        # Don't keep going if we did workspace permission work
+        if handled_workspace_permission:
+            return
 
     if options.operations is None:
         read(options, args)
@@ -206,7 +232,13 @@ def main():
 def read(options, args):
     objs = None
     filter_by = {'id': args[0]} if not options.head and args is not None and len(args) == 1 else None
-    objs = b.get(options.user_id, options.workspace_id, options.objects[0], options.all, filter_by)
+
+    objs = None
+    if len(options.objects) == 1 and options.objects[0] == 'Workspace':
+        objs = b.get_workspaces(options.user_id)
+        print objs
+    else:
+        objs = b.get(options.user_id, options.workspace_id, options.objects[0], options.all, filter_by)
     if options.head:
         objs = objs[:int(args[0])]
     if len(options.objects) == 1:
