@@ -236,7 +236,6 @@ def read(options, args):
     objs = None
     if len(options.objects) == 1 and options.objects[0] == 'Workspace':
         objs = b.get_workspaces(options.user_id)
-        print objs
     else:
         objs = b.get(options.user_id, options.workspace_id, options.objects[0], options.all, filter_by)
     if options.head:
