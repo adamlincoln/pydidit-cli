@@ -112,7 +112,7 @@ def get_username(options, cli_settings):
 def main():
     options, args = parser.parse_args()
 
-    b.initialize()
+    b.initialize(backend_settings)
 
     cli_settings = dict(ini.items('cli'))
 
