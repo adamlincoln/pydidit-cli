@@ -133,7 +133,7 @@ def main():
             print 'Successfully authenticated!'
             return
         else:
-            if not b.check_initial_token(username):
+            if not b.check_access_token(username):
                 print 'Please use the --trade-initial-token option to authenticate.'
                 sys.exit(1)
 
